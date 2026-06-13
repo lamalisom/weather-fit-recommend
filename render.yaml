@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: kait-weather-promotion-backend
+    env: python
+    plan: free # 🔥 這裡直接幫你強制選擇了「免費方案」！
+    buildCommand: pip install -r requirements.txt # 🔥 這裡直接代替你填好 Build Command！
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT # 🔥 這裡代替你填好 Start Command！

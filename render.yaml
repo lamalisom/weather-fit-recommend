@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: kait-weather-promotion-backend
+    name: weather-fit-recommend
     env: python
     plan: free # 🔥 這裡直接幫你強制選擇了「免費方案」！
     buildCommand: pip install -r requirements.txt # 🔥 這裡直接代替你填好 Build Command！

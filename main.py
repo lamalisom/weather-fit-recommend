@@ -44,6 +44,7 @@ async def fetch_weather(city: str = "Hong Kong") -> dict:
                 current = data.get("current", {})
                 return {
                     "temp": current.get("temp_c", 22.0),
+                    "feels_like": current.get("feelslike_c", 22.0),  # 👈 新增這一行抓取體感溫度
                     "uv": current.get("uv", 4.0),
                     "humidity": current.get("humidity", 70)
                 }

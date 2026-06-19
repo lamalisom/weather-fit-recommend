@@ -6,6 +6,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 
+
 # 載入環境變數（在 iPad 本地讀取 .env，在 Render 上會讀取 Environment Variables）
 load_dotenv()
 
@@ -89,44 +90,104 @@ async def trigger_apify_scraper(actor_id: str, payload: dict) -> str:
         return f"Trigger Error: {str(e)}"
 
 
-def generate_weather_poster(temp: float, uv: float, humidity: int, items: list) -> bytes:
+def generate_weather_poster(temp, uv, humidity, items):
     """
-    利用 Pillow 後端自動生成 1080x1350 精美時尚風格的穿搭引流海報
+    升級版時尚海報生成引擎 (1080 x 1350)
+    風格：Minimalist Black & Gold / Luxury Magazine Layout
     """
-    width, height = 1080, 1350
-    image = Image.new("RGB", (width, height), color="#121212")
+    # 1. 創建黃金比例畫布 (選用極具質感的深邃低反光黑 #0D0D0F，比純黑更高級)
+    canvas_w, canvas_h = 1080, 1350
+    image = Image.new("RGB", (canvas_w, canvas_h), color="#0D0D0F")
     draw = ImageDraw.Draw(image)
     
+    # 2. 字體加粗與字級放大設定 (Font Settings)
+    # 💡 提示：建議在專案中放入一個免費的 Google Noto Sans 或英文字體（如 Helvetica.ttf）
+    # 如果找不到字體檔案，代碼會自動降級使用 Pillow 系統預設字體，但字體大小功能會受限。
     try:
-        font_title = ImageFont.load_default()
-    except Exception:
-        font_title = None
+        # 你可以下載一個字體檔放進 GitHub 根目錄，並把名字改成 "main_font.ttf"
+        font_path = "main_font.ttf" 
+        font_brand = ImageFont.truetype(font_path, 56)      # 頂部品牌大字
+        font_subtitle = ImageFont.truetype(font_path, 28)   # 副標題細字
+        font_num = ImageFont.truetype(font_path, 90)        # 天氣超大數字
+        font_label = ImageFont.truetype(font_path, 24)      # 天氣指標小標籤
+        font_section = ImageFont.truetype(font_path, 36)    # 推薦欄目大標
+        font_item_title = ImageFont.truetype(font_path, 32) # 商品名稱
+        font_action = ImageFont.truetype(font_path, 26)     # 引流動作標籤
+    except IOError:
+        # 防禦機制：若無字體檔，使用系統預設
+        font_brand = font_subtitle = font_num = font_label = \
+        font_section = font_item_title = font_action = ImageFont.load_default()
 
-    draw.text((80, 100), "KAIT . HK", fill="#FFFFFF", font=font_title)
-    draw.text((80, 140), "TODAY'S WEATHER & OUTFIT ACCENTS", fill="#8E8E93")
+    # 3. 頂部品牌 Header 區塊 (大器留白，製造雜誌封面感)
+    draw.text((90, 90), "K A I T  .  H K", fill="#FFFFFF", font=font_brand)
+    draw.text((90, 170), "TODAY'S WEATHER & OUTFIT INSIGHTS", fill="#666672", font=font_subtitle)
     
-    draw.rectangle([80, 220, 1000, 420], fill="#1C1C1E", outline="#2C2C2E", width=2)
-    draw.text((120, 260), f"TEMPERATURE: {temp} °C", fill="#FF453A")
-    draw.text((120, 310), f"UV INDEX: {uv}", fill="#FFD60A")
-    draw.text((120, 360), f"HUMIDITY: {humidity} %", fill="#0A84FF")
+    # 頂部裝飾細線 (精品排版必備)
+    draw.line([(90, 230), (990, 230)], fill="#222226", width=2)
+
+    # 4. 天氣核心數據區塊 (橫向三欄式排版，間距拉開)
+    # 我們精準計算 X 軸座標，讓三個數據完美對稱平鋪
+    col_width = 270
+    start_x = 90
+    gap = 45
+    y_top = 290
     
-    draw.text((80, 490), "RECOMMENDED ACCESSORIES FOR YOU", fill="#E5E5EA")
+    weather_data = [
+        {"val": f"{temp}°C", "lbl": "TEMPERATURE", "color": "#FF4D4D"}, # 時尚霧紅
+        {"val": f"{uv}", "lbl": "UV INDEX", "color": "#FFC048"},       # 時尚芥末黃
+        {"val": f"{humidity}%", "lbl": "HUMIDITY", "color": "#2BCCB8"}  # 時尚松石綠
+    ]
     
-    start_y = 560
-    if items:
-        for idx, item in enumerate(items[:2]):
-            box_y = start_y + (idx * 220)
-            draw.rectangle([80, box_y, 1000, box_y + 180], fill="#2C2C2E")
-            draw.text((120, box_y + 40), f"ITEM 0{idx+1}: {item['name'][:45]}...", fill="#FFFFFF")
-            draw.text((120, box_y + 100), f"PLATFORM: {item['platform']} | CLICK LINK IN BIO TO SHOP", fill="#30D158")
-    else:
-        draw.text((120, 580), "Style Concept: Wear your favorite classic items comfortably.", fill="#BFBFBF")
+    for i, data in enumerate(weather_data):
+        col_x = start_x + i * (col_width + gap)
         
-    draw.text((80, 1200), "Generated automatically by KAIT AI Engine.", fill="#48484A")
-    draw.text((80, 1240), "Visit our website for full personalized skincare & dress recommendations.", fill="#8E8E93")
+        # 畫一個優雅的深灰色背景底框 (微弱的層次感)
+        draw.rectangle([col_x, y_top, col_x + col_width, y_top + 180], fill="#141419", radius=8)
+        
+        # 寫入超大實時天氣數字 (置中感排版)
+        draw.text((col_x + 25, y_top + 25), data["val"], fill=data["color"], font=font_num)
+        # 寫入指標英文小標籤
+        draw.text((col_x + 25, y_top + 125), data["lbl"], fill="#8E8E9F", font=font_label)
+
+    # 5. 下方穿搭推薦區塊 (Section Header)
+    y_recommend = 540
+    draw.text((90, y_recommend), "RECOMMENDED PIECES FOR YOU", fill="#FFFFFF", font=font_section)
+    draw.line([(90, y_recommend + 60), (990, y_recommend + 60)], fill="#222226", width=2)
+
+    # 6. 動態商品清單排版 (加大間距，加入卡片懸浮感)
+    y_item_start = 650
+    item_height = 240
+    item_gap = 40
     
+    # 如果完全沒抓到商品，給予一組時尚備用商品
+    display_items = items if items else [{"name": "Minimalist Essentials Set", "platform": "Amazon"}]
+    
+    # 最多只精選排版 2 個商品，留出大量高級空白
+    for idx, item in enumerate(display_items[:2]):
+        current_y = y_item_start + idx * (item_height + item_gap)
+        
+        # 商品高質感卡片大底框
+        draw.rectangle([90, current_y, 990, current_y + item_height], fill="#111115")
+        # 左側時尚點綴邊框線 (香檳金配色線條 #D4AF37)
+        draw.rectangle([90, current_y, 102, current_y + item_height], fill="#D4AF37")
+        
+        # 截斷過長的商品名稱，防止英文衝出畫布
+        raw_name = item.get("name", "Exclusive Premium Accessory")
+        clean_name = raw_name if len(raw_name) < 45 else raw_name[:42] + "..."
+        
+        # 印上高顯眼度的商品名稱
+        draw.text((130, current_y + 40), f"ITEM 0{idx+1} : {clean_name}", fill="#FFFFFF", font=font_item_title)
+        
+        # 底部綠色強引流字眼 (加大、字體加寬)
+        platform_str = f"PLATFORM: {item.get('platform', 'Global')}"
+        action_str = f"{platform_str}  |  CLICK LINK IN BIO TO SHOP"
+        draw.text((130, current_y + 130), action_str, fill="#A4E37A", font=font_action)
+
+    # 7. 打包成二進位流 (Byte Stream) 準備直傳 Supabase
     img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format='JPEG', quality=90)
+    image.save(img_byte_arr, format='JPEG', quality=95) # 提高畫質到 95%
+    img_byte_arr.seek(0)
+    
     return img_byte_arr.getvalue()
 
 

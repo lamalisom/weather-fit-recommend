@@ -299,7 +299,7 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
             sephora_keyword = "matte foundation"
             
         sephora_task = await trigger_apify_scraper(
-            actor_id="getdataforme/sephora-scraper-ingredients",  # 💡 截圖 2 的正確 ID
+            actor_id="autofacts/sephora",  # 💡 截圖 2 的正確 ID
             payload={"search": sephora_keyword, "maxItems": 3, "country": "HK"}
         )        
         triggered_scrapers["sephora_job"] = sephora_task

@@ -238,9 +238,9 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
             sephora_keyword = "matte foundation"
             
         sephora_task = await trigger_apify_scraper(
-            actor_id="richard_feng/sephora", 
+            actor_id="getdataforme/sephora-scraper-ingredients",  # 💡 截圖 2 的正確 ID
             payload={"search": sephora_keyword, "maxItems": 3, "country": "HK"}
-        )
+        )        
         triggered_scrapers["sephora_job"] = sephora_task
 
         # =================【3. ZALORA 服飾類部署邏輯】=================
@@ -251,7 +251,7 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
             zalora_keyword = "jacket"
             
         zalora_task = await trigger_apify_scraper(
-            actor_id="apify/zalora-scraper", 
+            actor_id="piotrv1001/zalora-listings-scraper",  # 💡 截圖 1 的正確 ID
             payload={"search": zalora_keyword, "maxItems": 3, "country": "hk"}
         )
         triggered_scrapers["zalora_job"] = zalora_task

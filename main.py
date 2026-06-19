@@ -143,7 +143,7 @@ def generate_weather_poster(temp, uv, humidity, items):
     
     for i, data in enumerate(weather_data):
         col_x = start_x + i * (col_width + gap)
-        draw.rectangle([col_x, y_top, col_x + col_width, y_top + 180], fill="#141419", radius=8)
+        draw.rounded_rectangle([col_x, y_top, col_x + col_width, y_top + 180], fill="#141419", radius=8)
         draw.text((col_x + 25, y_top + 25), data["val"], fill=data["color"], font=font_num)
         draw.text((col_x + 25, y_top + 125), data["lbl"], fill="#8E8E9F", font=font_label)
 

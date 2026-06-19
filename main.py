@@ -1,4 +1,4 @@
-import os
+Okayimport os
 import io
 import httpx
 from fastapi import FastAPI, BackgroundTasks
@@ -197,6 +197,7 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
         uv = weather["uv"]
         humidity = weather["humidity"]
         temp = weather["temp"]
+        feels_like = weather["feels_like"]  # 👈 拿出身體感受溫度
         
         final_promo_pool = []  # 最終商品池
         triggered_scrapers = {}
@@ -283,7 +284,8 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
         # =================【5. 免費社群富畫面引流發佈】=================
         promo_text = (
             f"【@kait.hk 今日香港環境穿搭通報】\n\n"
-            f"📊 實時體感：氣溫 {temp}°C | 紫外線 {uv} | 濕度 {humidity}%\n"
+            f"📊 實時氣溫：{temp}°C | 🌡️ 體感溫度：{feels_like}°C\n"
+            f"☀️ 紫外線：{uv} | 💧 濕度：{humidity}%\n\n"
             f"💡 今日專屬美妝服飾爬蟲已鎖定：{sephora_keyword} & {zalora_keyword}\n\n"
             f"🎒 穿搭細節與推薦單品，已同步更新在海報上！\n"
             f"👉 點擊頭像進入主頁 Link in Bio，即可一鍵前往官網獲取完整購買傳送門！✨"

@@ -310,7 +310,7 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
             payload={"search": zalora_keyword, "maxItems": 3, "country": "hk"}
         )
         triggered_scrapers["zalora_job"] = zalora_task
-        
+
 # =================【4. PILOW 自動化海報繪製 & SUPABASE 上傳】=================
         public_image_url = ""
         if supabase:
@@ -318,25 +318,25 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                 poster_bytes = generate_weather_poster(temp, uv, humidity, final_promo_pool)
                 file_name = "today_kait_report.jpg"
 
-                # 💡 繞過 SDK bug：先嘗試刪除舊檔案
+                # 💡 1. 先嘗試刪除舊檔案，避免重複上傳衝突
                 try:
                     supabase.storage.from_("posters").remove([file_name])
                 except Exception:
-                    # 如果檔案本來就不存在，remove 報錯直接忽略
                     pass
 
-                # 乾淨上傳，完全不用 file_options 參數，徹底杜絕 Header 報錯
+                # 💡 2. 使用標準元組格式 (檔名, 檔案二進位, MIME類型) 傳給 file 參數
+                # 這樣既能強制指定 image/jpeg，又可以完全避開 file_options 的轉型 Bug！
                 supabase.storage.from_("posters").upload(
                     path=file_name,
-                    file=poster_bytes
+                    file=(file_name, poster_bytes, "image/jpeg")
                 )
                 
-                # 成功後取得公開網址（假設你的 bucket 是 public）
+                # 成功後取得公開網址
                 public_image_url = supabase.storage.from_("posters").get_public_url(file_name)
                 print(f"📸 雲端海報生成成功，網址: {public_image_url}")
 
             except Exception as e:
-                print(f"❌ 繪圖或上傳雲端失敗: {str(e)}")
+                print(f"❌ 繪圖或上傳雲端失敗: {str(e)}")     
                 
         # =================【5. 免費社群富畫面引流發佈】=================
         promo_text = (

@@ -318,30 +318,39 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                 poster_bytes = generate_weather_poster(temp, uv, humidity, final_promo_pool)
                 file_name = "today_kait_report.jpg"
 
-                # 💡 1. 先嘗試刪除舊檔案，避免重複上傳衝突
+                # 💡 1. 嘗試刪除舊檔案
                 try:
                     supabase.storage.from_("posters").remove([file_name])
-                except Exception:
-                    pass
+                except Exception as rem_err:
+                    print(f"⚠️ 刪除舊檔失敗(通常可忽略): {str(rem_err)}")
 
-                # 💡 2. 使用標準元組格式 (檔名, 檔案二進位, MIME類型) 傳給 file 參數
-                # 這樣既能強制指定 image/jpeg，又可以完全避開 file_options 的轉型 Bug！
+                # 💡 2. 元組格式乾淨上傳
                 supabase.storage.from_("posters").upload(
                     path=file_name,
                     file=(file_name, poster_bytes, "image/jpeg")
                 )
+                print("✅ Supabase 檔案上傳動作已執行完畢")
                 
-                # 💡 3. 取得公開網址（相容新舊版 SDK 的安全寫法）
-                url_res = supabase.storage.from_("posters").get_public_url(file_name)
-                if hasattr(url_res, "public_url"):
-                    public_image_url = url_res.public_url
-                else:
-                    public_image_url = str(url_res)
+                # 💡 3. 取得公開網址（加上最安全的防禦與手動拼接）
+                try:
+                    url_res = supabase.storage.from_("posters").get_public_url(file_name)
+                    if hasattr(url_res, "public_url"):
+                        public_image_url = url_res.public_url
+                    elif isinstance(url_res, dict) and "publicUrl" in url_res:
+                        public_image_url = url_res["publicUrl"]
+                    else:
+                        public_image_url = str(url_res)
+                except Exception as url_err:
+                    print(f"⚠️ SDK 取得網址失敗，啟動手動拼接防禦: {str(url_err)}")
+                    # 💥 如果 SDK 耍笨拿不到，我們直接手動拼出 Supabase 標準公開圖片網址
+                    # 請確保 "posters" 這個 bucket 在 Supabase 後台有設為 Public 
+                    public_image_url = f"{SUPABASE_URL}/storage/v1/object/public/posters/{file_name}"
                     
                 print(f"📸 雲端海報生成成功，網址: {public_image_url}")
 
             except Exception as e:
-                print(f"❌ 繪圖或上傳雲端失敗: {str(e)}")
+                # 📢 這行非常重要！會在 Render 日誌裡印出真正死在第幾步、什麼錯誤
+                print(f"❌ 繪圖或上傳雲端失敗，具體原因: {str(e)}")    
                 
         # =================【5. 免費社群富畫面引流發佈】=================
         promo_text = (

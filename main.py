@@ -331,12 +331,17 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                     file=(file_name, poster_bytes, "image/jpeg")
                 )
                 
-                # 成功後取得公開網址
-                public_image_url = supabase.storage.from_("posters").get_public_url(file_name)
+                # 💡 3. 取得公開網址（相容新舊版 SDK 的安全寫法）
+                url_res = supabase.storage.from_("posters").get_public_url(file_name)
+                if hasattr(url_res, "public_url"):
+                    public_image_url = url_res.public_url
+                else:
+                    public_image_url = str(url_res)
+                    
                 print(f"📸 雲端海報生成成功，網址: {public_image_url}")
 
             except Exception as e:
-                print(f"❌ 繪圖或上傳雲端失敗: {str(e)}")     
+                print(f"❌ 繪圖或上傳雲端失敗: {str(e)}")
                 
         # =================【5. 免費社群富畫面引流發佈】=================
         promo_text = (

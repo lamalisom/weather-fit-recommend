@@ -318,12 +318,16 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                 poster_bytes = generate_weather_poster(temp, uv, humidity, final_promo_pool)
                 file_name = "today_kait_report.jpg"
                 
-                # 💡 核心修復：修改 content_type 格式，並將 upsert 設定為真實的布林值 True
+                # 💡 終極相容性寫法：分開設定，將 upsert 寫成符合 Header 規範的字串 "true"
                 supabase.storage.from_("posters").upload(
                     path=file_name,
                     file=poster_bytes,
-                    file_options={"content_type": "image/jpeg", "upsert": True}
+                    file_options={
+                        "content-type": "image/jpeg",
+                        "upsert": "true"  # 這裡要用小寫的字串 "true"，解決 Header 類型報錯
+                    }
                 )
+                
                 public_image_url = f"{SUPABASE_URL}/storage/v1/object/public/posters/{file_name}"
                 print(f"📸 雲端海報生成成功，網址: {public_image_url}")
             except Exception as img_err:

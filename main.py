@@ -143,10 +143,13 @@ def generate_weather_poster(temp, uv, humidity, items):
     
     for i, data in enumerate(weather_data):
         col_x = start_x + i * (col_width + gap)
-        draw.rounded_rectangle([col_x, y_top, col_x + col_width, y_top + 180], fill="#141419", radius=8)
+        
+        # 💡 安全性 100% 的寫法：直接使用 draw.rectangle 畫直角方塊，拿掉 radius 參數！
+        draw.rectangle([col_x, y_top, col_x + col_width, y_top + 180], fill="#141419")
+        
         draw.text((col_x + 25, y_top + 25), data["val"], fill=data["color"], font=font_num)
         draw.text((col_x + 25, y_top + 125), data["lbl"], fill="#8E8E9F", font=font_label)
-
+    
     # 5. 下方穿搭推薦區塊
     y_recommend = 540
     draw.text((90, y_recommend), "RECOMMENDED PIECES FOR YOU", fill="#FFFFFF", font=font_section)

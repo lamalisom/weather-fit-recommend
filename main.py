@@ -310,29 +310,34 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
             payload={"search": zalora_keyword, "maxItems": 3, "country": "hk"}
         )
         triggered_scrapers["zalora_job"] = zalora_task
-
-        # =================【4. PILOW 自動化海報繪製 & SUPABASE 上傳】=================
+        
+# =================【4. PILOW 自動化海報繪製 & SUPABASE 上傳】=================
         public_image_url = ""
         if supabase:
             try:
                 poster_bytes = generate_weather_poster(temp, uv, humidity, final_promo_pool)
                 file_name = "today_kait_report.jpg"
-                
-                # 💡 終極相容性寫法：分開設定，將 upsert 寫成符合 Header 規範的字串 "true"
+
+                # 💡 繞過 SDK bug：先嘗試刪除舊檔案
+                try:
+                    supabase.storage.from_("posters").remove([file_name])
+                except Exception:
+                    # 如果檔案本來就不存在，remove 報錯直接忽略
+                    pass
+
+                # 乾淨上傳，完全不用 file_options 參數，徹底杜絕 Header 報錯
                 supabase.storage.from_("posters").upload(
                     path=file_name,
-                    file=poster_bytes,
-                    file_options={
-                        "content-type": "image/jpeg",
-                        "upsert": "true"  # 這裡要用小寫的字串 "true"，解決 Header 類型報錯
-                    }
+                    file=poster_bytes
                 )
                 
-                public_image_url = f"{SUPABASE_URL}/storage/v1/object/public/posters/{file_name}"
+                # 成功後取得公開網址（假設你的 bucket 是 public）
+                public_image_url = supabase.storage.from_("posters").get_public_url(file_name)
                 print(f"📸 雲端海報生成成功，網址: {public_image_url}")
-            except Exception as img_err:
-                print(f"❌ 繪圖或上傳雲端失敗: {str(img_err)}")
 
+            except Exception as e:
+                print(f"❌ 繪圖或上傳雲端失敗: {str(e)}")
+                
         # =================【5. 免費社群富畫面引流發佈】=================
         promo_text = (
             f"【@kait.hk 今日香港環境穿搭通報】\n\n"

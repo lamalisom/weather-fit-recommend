@@ -1,4 +1,3 @@
-    import os
 import io
 import httpx
 from fastapi import FastAPI, BackgroundTasks

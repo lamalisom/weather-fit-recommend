@@ -1,4 +1,4 @@
-import os
+Audio audioimport os
 import io
 import httpx
 from fastapi import FastAPI, BackgroundTasks
@@ -88,7 +88,6 @@ async def trigger_apify_scraper(actor_id: str, payload: dict) -> str:
     except Exception as e:
         return f"Trigger Error: {str(e)}"
 
-
 def generate_weather_poster(temp, uv, humidity, items):
     """
     升級版時尚海報生成引擎 (1080 x 1350)
@@ -97,7 +96,7 @@ def generate_weather_poster(temp, uv, humidity, items):
     # 1. 創建黃金比例畫布
     canvas_w, canvas_h = 1080, 1350
     image = Image.new("RGB", (canvas_w, canvas_h), color="#0D0D0F")
-    draw = ImageDraw.Draw(image)
+    image_draw = ImageDraw.Draw(image)
     
     # 2. 字體加粗與字級放大設定
     try:
@@ -110,7 +109,6 @@ def generate_weather_poster(temp, uv, humidity, items):
         font_item_title = ImageFont.truetype(font_path, 32) 
         font_action = ImageFont.truetype(font_path, 26)     
     except IOError:
-        # 防禦機制：若無外部字體檔，使用系統預設，並利用內建的 font_size 參數嘗試放大（需 Pillow 10.0+）
         try:
             font_brand = ImageFont.load_default(size=56)
             font_subtitle = ImageFont.load_default(size=28)
@@ -124,35 +122,40 @@ def generate_weather_poster(temp, uv, humidity, items):
             font_section = font_item_title = font_action = ImageFont.load_default()
 
     # 3. 頂部品牌 Header 區塊
-    draw.text((90, 90), "K A I T  .  H K", fill="#FFFFFF", font=font_brand)
-    draw.text((90, 170), "TODAY'S WEATHER & OUTFIT INSIGHTS", fill="#666672", font=font_subtitle)
-    draw.line([(90, 230), (990, 230)], fill="#222226", width=2)
+    image_draw.text((90, 90), "K A I T  .  H K", fill="#FFFFFF", font=font_brand)
+    image_draw.text((90, 170), "TODAY'S WEATHER & OUTFIT INSIGHTS", fill="#666672", font=font_subtitle)
+    image_draw.line([(90, 230), (990, 230)], fill="#222226", width=2)
 
-    # 4. 天氣核心數據區塊 (橫向三欄式排版)
+    # 4. 天氣核心數據區塊 (安全清洗型態)
     col_width = 270
     start_x = 90
     gap = 45
     y_top = 290
     
+    # 💡 這裡做極限防禦：清除原本可能帶有的舊單位，並統一轉成乾淨的字串
+    clean_temp = str(temp).replace("°C", "").strip()
+    clean_humidity = str(humidity).replace("%", "").strip()
+    clean_uv = str(uv).strip()
+
     weather_data = [
-        {"val": f"{temp}°C", "lbl": "TEMPERATURE", "color": "#FF4D4D"}, 
-        {"val": f"{uv}", "lbl": "UV INDEX", "color": "#FFC048"},       
-        {"val": f"{humidity}%", "lbl": "HUMIDITY", "color": "#2BCCB8"}  
+        {"val": f"{clean_temp}°C", "lbl": "TEMPERATURE", "color": "#FF4D4D"}, 
+        {"val": f"{clean_uv}", "lbl": "UV INDEX", "color": "#FFC048"},      
+        {"val": f"{clean_humidity}%", "lbl": "HUMIDITY", "color": "#2BCCB8"}  
     ]
     
     for i, data in enumerate(weather_data):
         col_x = start_x + i * (col_width + gap)
         
-        # 💡 安全性 100% 的寫法：直接使用 draw.rectangle 畫直角方塊，拿掉 radius 參數！
-        draw.rectangle([col_x, y_top, col_x + col_width, y_top + 180], fill="#141419")
+        image_draw.rectangle([col_x, y_top, col_x + col_width, y_top + 180], fill="#141419")
         
-        draw.text((col_x + 25, y_top + 25), data["val"], fill=data["color"], font=font_num)
-        draw.text((col_x + 25, y_top + 125), data["lbl"], fill="#8E8E9F", font=font_label)
+        # 💡 強制確保傳入的是 str
+        image_draw.text((col_x + 25, y_top + 25), str(data["val"]), fill=data["color"], font=font_num)
+        image_draw.text((col_x + 25, y_top + 125), str(data["lbl"]), fill="#8E8E9F", font=font_label)
     
     # 5. 下方穿搭推薦區塊
     y_recommend = 540
-    draw.text((90, y_recommend), "RECOMMENDED PIECES FOR YOU", fill="#FFFFFF", font=font_section)
-    draw.line([(90, y_recommend + 60), (990, y_recommend + 60)], fill="#222226", width=2)
+    image_draw.text((90, y_recommend), "RECOMMENDED PIECES FOR YOU", fill="#FFFFFF", font=font_section)
+    image_draw.line([(90, y_recommend + 60), (990, y_recommend + 60)], fill="#222226", width=2)
 
     # 6. 動態商品清單排版
     y_item_start = 650
@@ -164,17 +167,17 @@ def generate_weather_poster(temp, uv, humidity, items):
     for idx, item in enumerate(display_items[:2]):
         current_y = y_item_start + idx * (item_height + item_gap)
         
-        draw.rectangle([90, current_y, 990, current_y + item_height], fill="#111115")
-        draw.rectangle([90, current_y, 102, current_y + item_height], fill="#D4AF37")
+        image_draw.rectangle([90, current_y, 990, current_y + item_height], fill="#111115")
+        image_draw.rectangle([90, current_y, 102, current_y + item_height], fill="#D4AF37")
         
-        raw_name = item.get("name", "Exclusive Premium Accessory")
-        clean_name = raw_name if len(raw_name) < 45 else raw_name[:42] + "..."
+        raw_name = item.get("name", "Exclusive Premium Accessory") if item else "Exclusive Premium Accessory"
+        clean_name = str(raw_name) if len(str(raw_name)) < 45 else str(raw_name)[:42] + "..."
         
-        draw.text((130, current_y + 40), f"ITEM 0{idx+1} : {clean_name}", fill="#FFFFFF", font=font_item_title)
+        image_draw.text((130, current_y + 40), f"ITEM 0{idx+1} : {clean_name}", fill="#FFFFFF", font=font_item_title)
         
-        platform_str = f"PLATFORM: {item.get('platform', 'Global')}"
+        platform_str = f"PLATFORM: {item.get('platform', 'Global')}" if item else "PLATFORM: Global"
         action_str = f"{platform_str}  |  CLICK LINK IN BIO TO SHOP"
-        draw.text((130, current_y + 130), action_str, fill="#A4E37A", font=font_action)
+        image_draw.text((130, current_y + 130), action_str, fill="#A4E37A", font=font_action)
 
     # 7. 打包成二進位流
     img_byte_arr = io.BytesIO()
@@ -182,7 +185,6 @@ def generate_weather_poster(temp, uv, humidity, items):
     img_byte_arr.seek(0)
     
     return img_byte_arr.getvalue()
-
 
 async def post_to_threads_with_image(text_content: str, image_url: str = None):
     """

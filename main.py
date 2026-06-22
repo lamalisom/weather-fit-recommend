@@ -1,10 +1,10 @@
+import os
 import io
 import httpx
 from fastapi import FastAPI, BackgroundTasks
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
-
 
 # 載入環境變數（在 iPad 本地讀取 .env，在 Render 上會讀取 Environment Variables）
 load_dotenv()

@@ -310,13 +310,21 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                 f"👉 點擊主頁 Link in Bio 獲取一鍵穿搭購買清單！\n"
                 f"#KAITStyle #今日穿搭 #天氣穿搭 #香港穿搭"
             )
+        # 4. 指派社群發佈任務, 🟢 改成直接同步等待 (Await) 發佈結果：
+        print("📢 啟動 Threads 同步發佈主線程...")
+        threads_response = await post_to_threads_engine(promo_text, public_image_url if public_image_url else None)
+        print(f"📡 Threads 官方終端回報: {threads_response}")
 
-        # 4. 指派社群發佈任務
-        if public_image_url:
-            background_tasks.add_task(post_to_threads_engine, promo_text, public_image_url)
-        else:
-            background_tasks.add_task(post_to_threads_engine, promo_text, None)
-
+        # 5. 回傳日誌報告
+        return {
+            "status": "success",
+            "active_mode": "Rich Image Mode" if public_image_url else "Pure Text Mode",
+            "weather_metrics": {"temp": f"{temp}°C", "uv": uv, "humidity": f"{humidity}%"},
+            "generated_poster_url": public_image_url if public_image_url else "None (Text Mode Active or Failed)",
+            "threads_api_response": threads_response, # 這樣我們在 Colab 就能直接抓到 Meta 給的發佈 ID 或錯誤碼
+            "background_crawling_tasks": triggered_scrapers
+        }
+        
         # 5. 回傳日誌報告
         return {
             "status": "success",

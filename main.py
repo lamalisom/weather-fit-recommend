@@ -170,13 +170,11 @@ def generate_weather_poster(temp, uv, humidity, items):
             raise Exception(f"HCTI API 錯誤: {response.text}")
 
 
-# =================【社群核心發佈端點】=================
 async def post_to_threads_engine(text_content: str, image_url: str = None):
-    """萬能 Threads 發佈引擎（自動判定富畫面或純文字）"""
+    """萬能 Threads 發佈引擎（進階除錯版）"""
     access_token = os.getenv("THREADS_ACCESS_TOKEN")
     if not access_token:
-        print("❌ 錯誤：未設定 THREADS_ACCESS_TOKEN，跳過社群發佈。")
-        return None
+        return "❌ 錯誤：Render 環境變數中找不到 THREADS_ACCESS_TOKEN"
 
     url = "https://graph.threads.net/v1.0/me/threads"
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
@@ -187,16 +185,13 @@ async def post_to_threads_engine(text_content: str, image_url: str = None):
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=headers, json=payload, timeout=20.0)
             if response.status_code == 200:
-                print(f"🎉 成功！貼文（類型:{'富畫面' if image_url else '純文字'}）已同步至 Threads！")
                 return response.json()
             else:
-                print(f"❌ Threads 發佈失敗: {response.status_code}, 回傳: {response.text}")
-                return None
+                # 💡 關鍵修改：直接把 Meta 回傳的錯誤碼和原因抓出來吐回給 Colab
+                return f"❌ Meta API 拒絕 (狀態碼 {response.status_code}): {response.text}"
     except Exception as e:
-        print(f"💥 呼叫 Threads API 時發生異常: {str(e)}")
-        return None
-
-
+        return f"💥 網路連線或代碼異常: {str(e)}"
+        
 # =================【健康檢查端點】=================
 @app.get("/")
 async def root_status():

@@ -187,11 +187,11 @@ async def post_to_threads_engine(text_content: str, image_url: str = None):
             if response.status_code == 200:
                 return response.json()
             else:
-                # 💡 關鍵修改：直接把 Meta 回傳的錯誤碼和原因抓出來吐回給 Colab
                 return f"❌ Meta API 拒絕 (狀態碼 {response.status_code}): {response.text}"
     except Exception as e:
         return f"💥 網路連線或代碼異常: {str(e)}"
         
+
 # =================【健康檢查端點】=================
 @app.get("/")
 async def root_status():
@@ -210,7 +210,7 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
         # 0. 讀取版本核心控制閥： "TEXT" 或者是 "IMAGE" (預設為 TEXT 安全版)
         active_version = os.getenv("KAIT_OUTPUT_VERSION", "TEXT").upper()
         
-        target_city = "Hong Kong"
+        target_city = "Hong Hong"
         amazon_tag = os.getenv("AMAZON_TAG", "kait-20")
         
         # 1. 獲取即時天氣數據
@@ -240,8 +240,8 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
 
         if not final_promo_pool:
             final_promo_pool = [
-                {"name": "Premium Moisture-Wicking Multi-Pack Socks", "platform": "Amazon", "url": f"https://www.amazon.com?tag={amazon_tag}"},
-                {"name": "UV Protection Ultralight Travel Umbrella", "platform": "Amazon", "url": f"https://www.amazon.com?tag={amazon_tag}"}
+                {"name": "Premium Moisture-Wicking Socks", "platform": "Amazon", "url": f"https://www.amazon.com?tag={amazon_tag}"},
+                {"name": "UV Protection Ultralight Umbrella", "platform": "Amazon", "url": f"https://www.amazon.com?tag={amazon_tag}"}
             ]
 
         # =================【2. APYFI 爬蟲指派】=================
@@ -284,12 +284,11 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                 f"👉 點擊頭像進入主頁 Link in Bio，即可一鍵前往官網獲取完整購買傳送門！✨"
             )
 
-            else:
-            # 📝 分支二：【純文字輕雜誌版】 (精簡控字數防爆版)
+        else:
+            # 📝 分支二：【純文字輕雜誌版】 (與 if active_version 對齊，精簡控字數防爆版)
             item_text_blocks = ""
             for idx, item in enumerate(final_promo_pool[:2]):
-                # 僅保留核心名稱與網址，防止長網址吃掉太多字元
-                clean_item_name = item['name'][:30] + "..." if len(item['name']) > 32 else item['name']
+                clean_item_name = item['name'][:25] + "..." if len(item['name']) > 28 else item['name']
                 item_text_blocks += f"🛒 ITEM 0{idx+1}: {clean_item_name}\n🔗 {item['url']}\n\n"
 
             promo_text = (
@@ -305,7 +304,7 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                 f"👉 點擊主頁 Link in Bio 獲取完整清單！"
             )
             
-        # 4. 指派社群發佈任務, 🟢 改成直接同步等待 (Await) 發佈結果：
+        # 4. 指派社群發佈任務（主線程同步等待結果）
         print("📢 啟動 Threads 同步發佈主線程...")
         threads_response = await post_to_threads_engine(promo_text, public_image_url if public_image_url else None)
         print(f"📡 Threads 官方終端回報: {threads_response}")
@@ -316,16 +315,7 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
             "active_mode": "Rich Image Mode" if public_image_url else "Pure Text Mode",
             "weather_metrics": {"temp": f"{temp}°C", "uv": uv, "humidity": f"{humidity}%"},
             "generated_poster_url": public_image_url if public_image_url else "None (Text Mode Active or Failed)",
-            "threads_api_response": threads_response, # 這樣我們在 Colab 就能直接抓到 Meta 給的發佈 ID 或錯誤碼
-            "background_crawling_tasks": triggered_scrapers
-        }
-        
-        # 5. 回傳日誌報告
-        return {
-            "status": "success",
-            "active_mode": "Rich Image Mode" if public_image_url else "Pure Text Mode",
-            "weather_metrics": {"temp": f"{temp}°C", "uv": uv, "humidity": f"{humidity}%"},
-            "generated_poster_url": public_image_url if public_image_url else "None (Text Mode Active or Failed)",
+            "threads_api_response": threads_response,
             "background_crawling_tasks": triggered_scrapers
         }
         

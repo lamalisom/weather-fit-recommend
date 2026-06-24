@@ -283,28 +283,28 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                 f"🎒 穿搭細節與推薦單品，已同步更新在海報上！\n"
                 f"👉 點擊頭像進入主頁 Link in Bio，即可一鍵前往官網獲取完整購買傳送門！✨"
             )
-        else:
-            # 📝 分支二：【純文字輕雜誌版】 (預設安全牌，完全不碰圖片)
+
+            else:
+            # 📝 分支二：【純文字輕雜誌版】 (精簡控字數防爆版)
             item_text_blocks = ""
             for idx, item in enumerate(final_promo_pool[:2]):
-                item_text_blocks += f"🛒 𝗜𝗧𝗘𝗠 𝟬{idx+1} : {item['name']}\n"
-                item_text_blocks += f"🔗 購買傳送門 : {item['url']}\n\n"
+                # 僅保留核心名稱與網址，防止長網址吃掉太多字元
+                clean_item_name = item['name'][:30] + "..." if len(item['name']) > 32 else item['name']
+                item_text_blocks += f"🛒 ITEM 0{idx+1}: {clean_item_name}\n🔗 {item['url']}\n\n"
 
             promo_text = (
-                f"✦ 𝗞 𝗔 Ｉ 𝗧  .  𝗛 𝗞 ✦\n"
-                f"──────────────────────\n"
-                f"𝗧𝗢𝗗𝗔𝗬'𝗦 𝗪𝗘𝗔𝗧𝗛𝗘𝗥 & 𝗢𝗨𝗧𝗙𝗜𝗧 𝗜𝗡𝗦𝗜𝗚𝗛𝗧\n\n"
-                f"[ 📊 今日香港環境數據 ]\n"
-                f"🌡️ 實時氣溫 ｜ {temp}°C (體感 {feels_like}°C)\n"
-                f"☀️ 紫外線指數 ｜ {uv}\n"
-                f"💧 空氣濕度 ｜ {humidity}%\n\n"
-                f"──────────────────────\n"
-                f"[ 🎒 𝗞𝗔𝗜𝗧 智選穿搭提案 ]\n\n"
+                f"✦ KAIT . HK ✦\n"
+                f"TODAY'S WEATHER & OUTFIT\n\n"
+                f"[ 📊 今日環境數據 ]\n"
+                f"🌡️ 氣溫 ｜ {temp}°C (體感 {feels_like}°C)\n"
+                f"☀️ 紫外線 ｜ {uv}\n"
+                f"💧 濕度 ｜ {humidity}%\n\n"
+                f"[ 🎒 智選穿搭提案 ]\n"
                 f"{item_text_blocks}"
-                f"💡 今日美妝/服飾自動爬蟲已鎖定：#{sephora_keyword} 與 #{zalora_keyword}，完整穿搭報告已在後台更新！\n\n"
-                f"👉 點擊主頁 Link in Bio 獲取一鍵穿搭購買清單！\n"
-                f"#KAITStyle #今日穿搭 #天氣穿搭 #香港穿搭"
+                f"💡 爬蟲已鎖定：#{sephora_keyword} & #{zalora_keyword}\n\n"
+                f"👉 點擊主頁 Link in Bio 獲取完整清單！"
             )
+            
         # 4. 指派社群發佈任務, 🟢 改成直接同步等待 (Await) 發佈結果：
         print("📢 啟動 Threads 同步發佈主線程...")
         threads_response = await post_to_threads_engine(promo_text, public_image_url if public_image_url else None)

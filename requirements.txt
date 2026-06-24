@@ -3,4 +3,3 @@ uvicorn
 httpx
 supabase
 python-dotenv
-Pillow

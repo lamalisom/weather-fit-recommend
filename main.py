@@ -1,10 +1,9 @@
-Audio audioimport os
+import os
 import io
 import httpx
 from fastapi import FastAPI, BackgroundTasks
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from PIL import Image, ImageDraw, ImageFont
 
 # 載入環境變數（在 iPad 本地讀取 .env，在 Render 上會讀取 Environment Variables）
 load_dotenv()
@@ -88,103 +87,144 @@ async def trigger_apify_scraper(actor_id: str, payload: dict) -> str:
     except Exception as e:
         return f"Trigger Error: {str(e)}"
 
+
 def generate_weather_poster(temp, uv, humidity, items):
     """
-    升級版時尚海報生成引擎 (1080 x 1350)
-    風格：Minimalist Black & Gold / Luxury Magazine Layout
+    方案 A：HTML/CSS 雲端高奢海報生成引擎 (1080 x 1350)
+    利用 Tailwind CSS 打造 Minimalist Black & Gold / Luxury Magazine 視覺
     """
-    # 1. 創建黃金比例畫布
-    canvas_w, canvas_h = 1080, 1350
-    image = Image.new("RGB", (canvas_w, canvas_h), color="#0D0D0F")
-    image_draw = ImageDraw.Draw(image)
-    
-    # 2. 字體加粗與字級放大設定
-    try:
-        font_path = "main_font.ttf" 
-        font_brand = ImageFont.truetype(font_path, 56)      
-        font_subtitle = ImageFont.truetype(font_path, 28)   
-        font_num = ImageFont.truetype(font_path, 90)        
-        font_label = ImageFont.truetype(font_path, 24)      
-        font_section = ImageFont.truetype(font_path, 36)    
-        font_item_title = ImageFont.truetype(font_path, 32) 
-        font_action = ImageFont.truetype(font_path, 26)     
-    except IOError:
-        try:
-            font_brand = ImageFont.load_default(size=56)
-            font_subtitle = ImageFont.load_default(size=28)
-            font_num = ImageFont.load_default(size=75)
-            font_label = ImageFont.load_default(size=22)
-            font_section = ImageFont.load_default(size=36)
-            font_item_title = ImageFont.load_default(size=30)
-            font_action = ImageFont.load_default(size=24)
-        except Exception:
-            font_brand = font_subtitle = font_num = font_label = \
-            font_section = font_item_title = font_action = ImageFont.load_default()
-
-    # 3. 頂部品牌 Header 區塊
-    image_draw.text((90, 90), "K A I T  .  H K", fill="#FFFFFF", font=font_brand)
-    image_draw.text((90, 170), "TODAY'S WEATHER & OUTFIT INSIGHTS", fill="#666672", font=font_subtitle)
-    image_draw.line([(90, 230), (990, 230)], fill="#222226", width=2)
-
-    # 4. 天氣核心數據區塊 (安全清洗型態)
-    col_width = 270
-    start_x = 90
-    gap = 45
-    y_top = 290
-    
-    # 💡 這裡做極限防禦：清除原本可能帶有的舊單位，並統一轉成乾淨的字串
+    # 1. 安全清洗與型態轉換
     clean_temp = str(temp).replace("°C", "").strip()
     clean_humidity = str(humidity).replace("%", "").strip()
     clean_uv = str(uv).strip()
-
-    weather_data = [
-        {"val": f"{clean_temp}°C", "lbl": "TEMPERATURE", "color": "#FF4D4D"}, 
-        {"val": f"{clean_uv}", "lbl": "UV INDEX", "color": "#FFC048"},      
-        {"val": f"{clean_humidity}%", "lbl": "HUMIDITY", "color": "#2BCCB8"}  
-    ]
-    
-    for i, data in enumerate(weather_data):
-        col_x = start_x + i * (col_width + gap)
-        
-        image_draw.rectangle([col_x, y_top, col_x + col_width, y_top + 180], fill="#141419")
-        
-        # 💡 強制確保傳入的是 str
-        image_draw.text((col_x + 25, y_top + 25), str(data["val"]), fill=data["color"], font=font_num)
-        image_draw.text((col_x + 25, y_top + 125), str(data["lbl"]), fill="#8E8E9F", font=font_label)
-    
-    # 5. 下方穿搭推薦區塊
-    y_recommend = 540
-    image_draw.text((90, y_recommend), "RECOMMENDED PIECES FOR YOU", fill="#FFFFFF", font=font_section)
-    image_draw.line([(90, y_recommend + 60), (990, y_recommend + 60)], fill="#222226", width=2)
-
-    # 6. 動態商品清單排版
-    y_item_start = 650
-    item_height = 240
-    item_gap = 40
     
     display_items = items if items else [{"name": "Minimalist Essentials Set", "platform": "Amazon"}]
     
+    # 動態構建商品列表的 HTML
+    items_html = ""
     for idx, item in enumerate(display_items[:2]):
-        current_y = y_item_start + idx * (item_height + item_gap)
+        raw_name = item.get("name", "Exclusive Premium Accessory")
+        clean_name = raw_name if len(raw_name) < 45 else raw_name[:42] + "..."
+        platform = item.get("platform", "Global")
         
-        image_draw.rectangle([90, current_y, 990, current_y + item_height], fill="#111115")
-        image_draw.rectangle([90, current_y, 102, current_y + item_height], fill="#D4AF37")
-        
-        raw_name = item.get("name", "Exclusive Premium Accessory") if item else "Exclusive Premium Accessory"
-        clean_name = str(raw_name) if len(str(raw_name)) < 45 else str(raw_name)[:42] + "..."
-        
-        image_draw.text((130, current_y + 40), f"ITEM 0{idx+1} : {clean_name}", fill="#FFFFFF", font=font_item_title)
-        
-        platform_str = f"PLATFORM: {item.get('platform', 'Global')}" if item else "PLATFORM: Global"
-        action_str = f"{platform_str}  |  CLICK LINK IN BIO TO SHOP"
-        image_draw.text((130, current_y + 130), action_str, fill="#A4E37A", font=font_action)
+        items_html += f"""
+        <div style="display: flex; background: #111115; margin-bottom: 20px; border-left: 6px solid #D4AF37; padding: 20px;">
+            <div style="padding-left: 15px;">
+                <div style="font-size: 24px; color: #FFFFFF; font-weight: bold; font-family: 'Playfair Display', serif; margin-bottom: 5px;">
+                    ITEM 0{idx+1} : {clean_name}
+                </div>
+                <div style="font-size: 18px; color: #A4E37A; font-weight: 500; letter-spacing: 1px;">
+                    PLATFORM: {platform}  |  CLICK LINK IN BIO TO SHOP
+                </div>
+            </div>
+        </div>
+        """
 
-    # 7. 打包成二進位流
-    img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format='JPEG', quality=95)
-    img_byte_arr.seek(0)
+    # 2. 撰寫精美的黑金高奢雜誌風 HTML 模版
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700&family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+        <style>
+            body {{
+                margin: 0; padding: 0; width: 1080px; height: 1350px;
+                background-color: #0D0D0F; color: #FFFFFF;
+                font-family: 'Montserrat', sans-serif;
+                box-sizing: border-box;
+            }}
+            .container {{
+                padding: 90px; height: 100%; display: flex; flex-direction: column; justify-content: space-between;
+            }}
+            .header {{
+                border-bottom: 2px solid #222226; padding-bottom: 30px;
+            }}
+            .brand {{
+                font-size: 56px; font-weight: 700; letter-spacing: 12px; font-family: 'Playfair Display', serif; margin: 0;
+            }}
+            .subtitle {{
+                font-size: 22px; color: #666672; letter-spacing: 2px; margin-top: 15px; font-weight: 300;
+            }}
+            .weather-grid {{
+                display: flex; gap: 35px; margin-top: 50px;
+            }}
+            .weather-card {{
+                flex: 1; background: #141419; padding: 30px; border-radius: 4px;
+            }}
+            .weather-val {{
+                font-size: 65px; font-weight: 700; margin-bottom: 10px; font-family: 'Playfair Display', serif;
+            }}
+            .weather-lbl {{
+                font-size: 16px; color: #8E8E9F; letter-spacing: 2px; font-weight: 700;
+            }}
+            .section-title {{
+                font-size: 28px; font-weight: 700; letter-spacing: 3px; margin-top: 60px; margin-bottom: 20px;
+                border-bottom: 2px solid #222226; padding-bottom: 15px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div class="brand">K A I T  .  H K</div>
+                <div class="subtitle">TODAY'S WEATHER & OUTFIT INSIGHTS</div>
+            </div>
+            
+            <div class="weather-grid">
+                <div class="weather-card">
+                    <div class="weather-val" style="color: #FF4D4D;">{clean_temp}°C</div>
+                    <div class="weather-lbl">TEMPERATURE</div>
+                </div>
+                <div class="weather-card">
+                    <div class="weather-val" style="color: #FFC048;">{clean_uv}</div>
+                    <div class="weather-lbl">UV INDEX</div>
+                </div>
+                <div class="weather-card">
+                    <div>
+                        <div class="weather-val" style="color: #2BCCB8;">{clean_humidity}%</div>
+                        <div class="weather-lbl">HUMIDITY</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <div class="section-title">RECOMMENDED PIECES FOR YOU</div>
+                {items_html}
+            </div>
+            
+            <div style="text-align: center; color: #44444a; font-size: 14px; letter-spacing: 4px; margin-top: 40px;">
+                © KAIT AUTOMATION SYSTEM BY ALISON
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    # 3. 呼叫雲端 API 渲染圖片
+    hcti_user = os.getenv("HCTI_USER_ID")
+    hcti_key = os.getenv("HCTI_API_KEY")
     
-    return img_byte_arr.getvalue()
+    if not hcti_user or not hcti_key:
+        raise ValueError("缺少 HCTI_USER_ID 或 HCTI_API_KEY 環境變數")
+
+    api_url = "https://hcti.io/v1/image"
+    data = {
+        "html": html_content,
+        "width": 1080,
+        "height": 1350
+    }
+    
+    with httpx.Client() as client:
+        response = client.post(api_url, data=data, auth=(hcti_user, hcti_key), timeout=30.0)
+        if response.status_code == 200:
+            result = response.json()
+            image_url = result.get("url")
+            img_response = client.get(image_url)
+            return img_response.content
+        else:
+            raise Exception(f"HCTI API 錯誤: {response.text}")
+
 
 async def post_to_threads_with_image(text_content: str, image_url: str = None):
     """
@@ -312,7 +352,7 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
         )
         triggered_scrapers["zalora_job"] = zalora_task
 
-# =================【4. PILOW 自動化海報繪製 & SUPABASE 上傳】=================
+        # =================【4. HTML 雲端海報繪製 & SUPABASE 上傳】=================
         public_image_url = ""
         if supabase:
             try:
@@ -326,13 +366,12 @@ async def trigger_daily_pipeline(background_tasks: BackgroundTasks):
                     pass
 
                 # 💡 2. 使用標準元組格式 (檔名, 檔案二進位, MIME類型) 傳給 file 參數
-                # 這樣既能強制指定 image/jpeg，又可以完全避開 file_options 的轉型 Bug！
                 supabase.storage.from_("posters").upload(
                     path=file_name,
                     file=(file_name, poster_bytes, "image/jpeg")
                 )
                 
-                # 💡 3. 取得公開網址（相容新舊版 SDK 的安全寫法）
+                # 💡 3. 取得公開網址
                 url_res = supabase.storage.from_("posters").get_public_url(file_name)
                 if hasattr(url_res, "public_url"):
                     public_image_url = url_res.public_url

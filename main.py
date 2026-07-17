@@ -1,6 +1,8 @@
 import os
+import time
 import requests
 from google import genai
+from google.genai.errors import APIError
 
 # 1. 讀取 GitHub Secrets 的環境變數
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -18,8 +20,7 @@ def get_weather():
         return f"天氣抓取失敗: {str(e)}"
 
 def generate_decision(weather_data):
-    """呼叫 Gemini 2.5 進行環境適應決策"""
-    # 2026年最新採用的 Google GenAI 官方 SDK 初始化方式
+    """呼叫 Gemini 進行環境適應決策（包含自動重試機制）"""
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     prompt = f"""
@@ -45,12 +46,27 @@ def generate_decision(weather_data):
     
     #環境決策 #KAIT #生活日常 #智能適應
     """
-    
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=prompt,
-    )
-    return response.text
+
+    max_retries = 3
+    retry_delay = 5  # 每次重試等待 5 秒
+
+    for attempt in range(max_retries):
+        try:
+            print(f"嘗試調用 Gemini API (第 {attempt + 1}/{max_retries} 次)...")
+            # 使用當前最穩定的 gemini-2.5-flash 模型
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+            )
+            return response.text
+        except APIError as e:
+            if attempt < max_retries - 1:
+                print(f"⚠️ 遇到 API 錯誤: {e.message}。伺服器可能繁忙，{retry_delay} 秒後重試...")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # 遞增等待時間
+            else:
+                print("❌ 已達到最大重試次數，Gemini 伺服器依然不可用。")
+                raise e
 
 def send_to_telegram(text):
     """透過 Telegram API 直接發文"""
@@ -58,7 +74,7 @@ def send_to_telegram(text):
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
-        "parse_mode": "Markdown"  # 讓 Telegram 渲染我們 Markdown 的加粗與符號
+        "parse_mode": "Markdown"
     }
     response = requests.post(url, json=payload, timeout=10)
     if response.status_code == 200:
@@ -72,8 +88,11 @@ if __name__ == "__main__":
     print(f"天氣數據: {weather}")
     
     print("Step 2: 請求 Gemini 決策...")
-    decision_text = generate_decision(weather)
-    print("決策文案生成完畢。")
-    
-    print("Step 3: 發布至 Telegram...")
-    send_to_telegram(decision_text)
+    try:
+        decision_text = generate_decision(weather)
+        print("決策文案生成完畢。")
+        
+        print("Step 3: 發布至 Telegram...")
+        send_to_telegram(decision_text)
+    except Exception as error:
+        print(f"💥 任務因不可抗力失敗: {error}")

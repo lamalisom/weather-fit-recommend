@@ -1,32 +1,30 @@
-name: Daily Alarm to Make.com
+name: Run Weather Decision Bot
 
 on:
   schedule:
-    # 每天香港時間早上 08:30 觸發 (即 UTC 時間 00:30)
-    - cron: '30 0 * * *'
-  workflow_dispatch: # 允許你隨時在 GitHub 網頁上點擊 "Run workflow" 手動測試
+    - cron: '0 23 * * *' # 每天定時執行（例如香港時間早上 7 點）
+  workflow_dispatch: # 允許手動點擊執行
 
 jobs:
-  ping-make:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Live Weather & Wake Up Make.com
-        env:
-          # 我們會把 Make 的 Webhook 網址鎖在 GitHub Secrets 中，安全第一
-          MAKE_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
+      - name: 1. 簽出程式碼 (Checkout code)
+        uses: actions/checkout@v4
+
+      - name: 2. 設定 Python 環境 (Set up Python)
+        uses: actions/setup-python@v5
+        with:
+          python-level: '3.10'
+
+      - name: 3. 安裝依賴套件 (Install dependencies) 💡核心修正點
         run: |
-          echo "Good morning! Fetching real-time weather for Hong Kong..."
-          
-          # 透過 wttr.in 免費且免 API Key 的服務，快速抓取香港當下的天氣概要
-          # 包含：溫度 (%t)、濕度 (%h)、紫外線 (%u)、降雨機率 (%p)
-          WEATHER_INFO=$(curl -s "https://wttr.in/Hong+Kong?format=%t+Humidity:%h+UV:%u+Precipitation:%p")
-          echo "Current Weather Data: $WEATHER_INFO"
-          
-          echo "Waking up Make.com Webhook..."
-          
-          # 將天氣打包成 JSON 傳送給 Make.com
-          curl -X POST "$MAKE_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"raw_weather\": \"$WEATHER_INFO\"}"
-          
-          echo "🎉 Signal sent successfully!"
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: 4. 執行主程式 (Run script)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py

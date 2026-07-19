@@ -2,8 +2,9 @@ name: Daily Environmental Decision Post
 
 on:
   schedule:
-    # 每天香港時間早上 08:30 運行 (UTC 00:30)
-    - cron: '30 0 * * *'
+    # 改為每天香港時間早上 08:42 運行 (UTC 00:42)
+    # 避開 00 或 30 分的塞車時段，確保 GitHub 準時觸發
+    - cron: '42 0 * * *'
   workflow_dispatch: # 允許在網頁上手動點按測試
 
 jobs:

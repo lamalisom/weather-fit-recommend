@@ -106,31 +106,28 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
 
 def send_to_telegram(text, weather_desc):
     """發送訊息至 Telegram（附帶自動匹配的日系動漫風風景圖）"""
-    # 根據天氣特徵優化 Unsplash 搜尋關鍵字，使其更偏向新海誠或京都動畫風格的風景
-    photo_keyword = "anime-sky"
-    if "濕" in weather_desc or "雨" in weather_desc:
-        photo_keyword = "anime-rain"
     
-    # 建立一個動態的動漫風景圖片網址（利用 Unsplash Source 隨機獲取符合關鍵字的插畫）
-    image_url = f"https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80" 
-    # 備用機制：若想用動態隨機動漫風，可用下面這行（Unsplash 搜尋關鍵字演算法）
-    image_url = f"https://source.unsplash.com/featured/800x450/?anime,landscape,{photo_keyword}"
+    # 💡 修正點 1：改用穩定有效的動漫風景圖網址，並根據雨天或晴天做簡單切換
+    if "濕" in weather_desc or "雨" in weather_desc:
+        # 雨天/陰天氛圍的動漫風風景
+        image_url = "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80"
+    else:
+        # 晴天/新海誠風藍天動漫風景
+        image_url = "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80" 
 
-    # 將圖片網址隱藏在文字開頭的空格中，Telegram 就會自動在文章上方展開圖片，同時不破壞排版
-    formatted_text = f"[&#8205;]({image_url}){text}"
+    # 💡 修正點 2：使用 HTML 的零寬度空格隱藏網址，Telegram 展開圖片最穩定
+    # 把圖片網址塞在最前面，點擊不會顯示網址，但上方會自動跳出圖案
+    formatted_text = f'<a href="{image_url}">&#8205;</a>{text}'
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID, 
         "text": formatted_text, 
-        "parse_mode": "Markdown"
+        "parse_mode": "HTML"  # 💡 修正點 3：改用 HTML 模式配合上面的 <a> 標籤
     }
-    requests.post(url, json=payload, timeout=10)
-
-if __name__ == "__main__":
-    current_time, day_type, future_holiday = get_current_time_and_holiday()
-    weather_data = get_weather()
-    weather_summary = f"{weather_data['temp']} {weather_data['precipitation']}"
     
-    decision_text = generate_decision(weather_data, current_time, day_type, future_holiday)
-    send_to_telegram(decision_text, weather_summary)
+    response = requests.post(url, json=payload, timeout=10)
+    if response.status_code != 200:
+        print(f"Telegram 發送失敗: {response.text}")
+    else:
+        print("🎉 訊息與動漫封面已成功發送！")

@@ -131,3 +131,60 @@ def send_to_telegram(text, weather_desc):
         print(f"Telegram 發送失敗: {response.text}")
     else:
         print("🎉 訊息與動漫封面已成功發送！")
+
+def send_to_linkedin(text):
+    """將純文字報告同步發布至 LinkedIn 公開動態"""
+    access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
+    author_urn = os.getenv("LINKEDIN_AUTHOR_URN")
+    
+    # 如果 GitHub Secrets 沒有設定 LinkedIn 憑證，就跳過不執行，不影響 Telegram
+    if not access_token or not author_urn:
+        print("說明：未設定 LinkedIn 憑證，跳過 LinkedIn 同步發布。")
+        return
+
+    url = "https://api.linkedin.com/v2/ugcPosts"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+    
+    # 建立符合 LinkedIn 規範的 JSON 結構
+    payload = {
+        "author": author_urn,
+        "lifecycleState": "PUBLISHED",
+        "specificContent": {
+            "com.linkedin.ugc.ShareContent": {
+                "shareCommentary": {
+                    "text": text  # 傳入純文字
+                },
+                "shareMediaCategory": "NONE"
+            }
+        },
+        "visibility": {
+            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" # 設定為對公眾公開
+        }
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        if response.status_code == 201:
+            print("🎉 報告已成功同步發布至 LinkedIn！")
+        else:
+            print(f"❌ LinkedIn 發布失敗: {response.text}")
+    except Exception as e:
+        print(f"❌ LinkedIn 連線失敗: {str(e)}")
+
+if __name__ == "__main__":
+    current_time, day_type, future_holiday = get_current_time_and_holiday()
+    weather_data = get_weather()
+    weather_summary = f"{weather_data['temp']} {weather_data['precipitation']}"
+    
+    # 1. 讓 Gemini 生成基礎的環境決策純文字
+    decision_text = generate_decision(weather_data, current_time, day_type, future_holiday)
+    
+    # 2. 發送到 Telegram（此函數內部會自己幫文字加上動漫封面網址與 HTML 標籤）
+    send_to_telegram(decision_text, weather_summary)
+    
+    # 3. 同步發送到 LinkedIn（直接發送乾淨的純文字內容）
+    send_to_linkedin(decision_text)

@@ -1,5 +1,6 @@
 import os
 import time
+import re  
 from datetime import datetime, timedelta, timezone
 import requests
 import holidays
@@ -136,44 +137,55 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
         except APIError:
             time.sleep(2)
     return "決策生成失敗"
-    
-def send_to_telegram(text, weather_desc):
-    """發送訊息至 Telegram（附帶自動匹配的日系動漫風風景圖）"""
-    
-    # 💡 修正點 1：改用穩定有效的動漫風景圖網址，並根據雨天或晴天做簡單切換
-    if "濕" in weather_desc or "雨" in weather_desc:
-        # 雨天/陰天氛圍的動漫風風景
-        image_url = "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80"
-    else:
-        # 晴天/新海誠風藍天動漫風景
-        image_url = "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80" 
 
-    # 💡 修正點 2：使用 HTML 的零寬度空格隱藏網址，Telegram 展開圖片最穩定
-    # 把圖片網址塞在最前面，點擊不會顯示網址，但上方會自動跳出圖案
+
+def send_to_telegram(text, weather_desc):
+    """發送訊息至 Telegram（根據真實天氣特徵動態匹配日系動漫風景圖）"""
+    
+    # 預設圖片：清爽的日系藍天（適合晴天、普通日子）
+    image_url = "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80"
+    
+    # 1. 提取空氣質素數據（從 weather_desc 或從傳入的數據判斷，此處以關鍵字檢查為例）
+    # 2. 根據雨量與極端環境動態切換精選圖片
+    if "雨" in weather_desc or "濕度 9" in weather_desc:
+        # 雨天/高濕度：言葉之庭風的雨中綠意與街道
+        image_url = "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80"
+    elif "污染" in weather_desc or "嚴重" in weather_desc:
+        # 空氣質素極差/陰霾：低飽和度的霧氣動漫感風景
+        image_url = "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80"
+    elif "酷熱" in weather_desc or "3" in weather_desc:
+        # 極端高溫/烈日：強烈陽光感的高飽和度夏日晴空
+        image_url = "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=800&q=80"
+
+    # 使用 HTML 的零寬度空格隱藏網址，讓 Telegram 自動在上方展開對應的天氣封面
     formatted_text = f'<a href="{image_url}">&#8205;</a>{text}'
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID, 
         "text": formatted_text, 
-        "parse_mode": "HTML"  # 💡 修正點 3：改用 HTML 模式配合上面的 <a> 標籤
+        "parse_mode": "HTML"
     }
     
     response = requests.post(url, json=payload, timeout=10)
     if response.status_code != 200:
-        print(f"Telegram 發送失敗: {response.text}")
+        print(f"❌ Telegram 發送失敗: {response.text}")
     else:
-        print("🎉 訊息與動漫封面已成功發送！")
+        print(f"🎉 成功匹配環境圖片並發送！當前圖片類型基於特徵: {weather_desc}")
+        
+
 
 def send_to_linkedin(text):
-    """將純文字報告同步發布至 LinkedIn 公開動態"""
+    """將報告同步發布至 LinkedIn (自動過濾 HTML 標籤以防報錯)"""
     access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
     author_urn = os.getenv("LINKEDIN_AUTHOR_URN")
     
-    # 如果 GitHub Secrets 沒有設定 LinkedIn 憑證，就跳過不執行，不影響 Telegram
     if not access_token or not author_urn:
         print("說明：未設定 LinkedIn 憑證，跳過 LinkedIn 同步發布。")
         return
+
+    # 💡 核心修改：LinkedIn 不支援 HTML 標籤，用正規表達式把 <b> 和 </b> 刪掉，還原成純文字
+    clean_text = re.sub(r'<[^>]+>', '', text)
 
     url = "https://api.linkedin.com/v2/ugcPosts"
     headers = {
@@ -182,6 +194,33 @@ def send_to_linkedin(text):
         "X-Restli-Protocol-Version": "2.0.0"
     }
     
+    payload = {
+        "author": author_urn,
+        "lifecycleState": "PUBLISHED",
+        "specificContent": {
+            "com.linkedin.ugc.ShareContent": {
+                "shareCommentary": {
+                    "text": clean_text  # 傳入乾淨的純文字
+                },
+                "shareMediaCategory": "NONE"
+            }
+        },
+        "visibility": {
+            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+        }
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        # LinkedIn 成功發布會回傳 201 Created
+        if response.status_code == 201:
+            print("🎉 報告已成功同步發布至 LinkedIn！")
+        else:
+            print(f"❌ LinkedIn 發布失敗，狀態碼: {response.status_code}")
+            print(f"❌ 錯誤訊息: {response.text}")  # 這裡能看到具體失敗原因
+    except Exception as e:
+        print(f"❌ LinkedIn 連線失敗: {str(e)}")
+        
     # 建立符合 LinkedIn 規範的 JSON 結構
     payload = {
         "author": author_urn,

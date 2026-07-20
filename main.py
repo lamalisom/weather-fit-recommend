@@ -67,37 +67,54 @@ def get_weather():
     return {"region": "香港", "temp": "N/A", "apparent_temp": "N/A", "humidity": "N/A", "uv_index": "N/A", "precipitation": "N/A"}
 
 def generate_decision(weather, time_str, day_type, future_holiday_info):
-    """呼叫 Gemini 生成精簡內文"""
+    """呼叫 Gemini 生成結構化的 KAIT Daily Decision Feed"""
     client = genai.Client(api_key=GEMINI_API_KEY)
     
-    weather_context = f"地區:{weather['region']}|時間:{time_str}|氣溫:{weather['temp']}|體感:{weather['apparent_temp']}|濕度:{weather['humidity']}|紫外線:{weather['uv_index']}|降雨:{weather['precipitation']}"
+    # 建立精準的環境數據上下文
+    weather_context = f"氣溫:{weather['temp']}|體感:{weather['apparent_temp']}|濕度:{weather['humidity']}|紫外線:{weather['uv_index']}|降雨:{weather['precipitation']}"
     future_context = f"兩週後假期: {future_holiday_info['name']} ({future_holiday_info['date']})" if future_holiday_info else "無特殊假期"
 
     prompt = f"""
-    任務：根據環境數據寫一份極精簡的 Telegram 生活指南。
-    數據：{weather_context} | {future_context}
+    任務：根據環境數據，生成今日的【KAIT Daily Decision Feed】。
     
-    排版規範：
-    1. ❌ 嚴格禁止出現 "Do/Don't/建議/避忌/優點/缺點" 等標籤。字數控制在 150-200 字內，越精煉越好。
-    2. 將「放狗」、「瑜伽」、「留家烘焙/煮食」流暢融入兩段內文。
-    3. 如果有兩週後假期，在底部加上「🔮 【KAIT 假期前瞻】」區塊（1-2句流暢內文）。
-    4. 請嚴格遵守以下格式輸出（使用 Telegram 標準 Markdown，用 * 加粗）：
+    核心宗旨：不要做 Lifestyle 內容，不做百科，不做心靈雞湯。所有內容必須服務同一個目的——引導用戶相信 KAIT 的 Decision Intelligence。每一項輸出都必須是可立即採取的「Decision」或解釋決策邏輯的「Decision Fact」。
+
+    數據源：
+    - 環境：{weather_context}
+    - 日程：{day_type} | {future_context}
     
-    🤖 *【KAIT 環境決策】*
-    📍 *監測：* {weather['region']} | {time_str}
-    
-    (此處寫第一段：結合天候的放狗與瑜伽指南，文字要流暢、優雅、精簡。)
-    
-    (此處寫第二段：結合濕度與時間的烘焙/料理提案。)
-    
-    {"🔮 *【KAIT 假期前瞻】*" if future_holiday_info else ""}
-    {"(此處寫流暢內文：提醒兩週後{}是*{}*，並結合當前季節給出一句出行或烘焙的提早準備建議。)".format(future_holiday_info['date'], future_holiday_info['name']) if future_holiday_info else ""}
-    
-    #環境決策 #KAIT #智能生活
+    格式規範：
+    1. 必須嚴格按照下方給出的 HTML 結構輸出，不得自行添加額外的引言或問候語。
+    2. 使用 HTML 語法加粗（<b>文字</b>），不要使用 Markdown 的星號。
+    3. 整篇字數控制在 250 字內，用詞必須冷靜、理性、專業、精煉。
+
+    請嚴格依照以下結構輸出內容：
+
+    🤖 <b>【KAIT Daily Decision Feed】</b>
+    📍 <b>Environment：</b> {weather['region']} | {time_str} | {weather['temp']} | UV {weather['uv_index']} | 濕度 {weather['humidity']}
+
+    -----------------
+    🎯 <b>Today's Decisions</b>
+    👕 <b>Wear：</b> [根據天候體感給出1句穿搭決策]
+    🛒 <b>Buy：</b> [根據氣溫/降雨給出1句精準消費或避免衝動消費的決策]
+    💄 <b>Skincare：</b> [根據濕度/UV給出1句護膚/防曬決策]
+    🍽 <b>Eat/Go：</b> [根據今日工作日/假期屬性與天候，給出1句出行或飲食決策]
+
+    -----------------
+    🧠 <b>Decision Knowledge (Why?)</b>
+    <b>Fact：</b> [給出一個與今天環境高度相關的數據、心理學或消費科學事實。例如：濕度>85%時化妝持久度平均下降、高溫與衝動購物率成正比、陰天比晴天更容易忽略 UV 等。]
+    <b>AI Logic：</b> [用1句話解釋，基於上述 Fact，KAIT 今日決策矩陣的推薦邏輯。]
+
+    -----------------
+    🔮 <b>Today's Reflection (Mind Decision)</b>
+    [提供一個基於環境數據的「大腦決策反思」。不要心靈語錄，而是與決策品質相關的提醒。例如：今天高溫易使決策質量下降，建議將重要郵件回覆延遲30分鐘；或不要因為短暫舒服而犧牲長期決策。]
+
+    #DecisionIntelligence #KAIT #智能決策
     """
 
     for _ in range(3):
         try:
+            # 確保使用最新的 gemini-2.5-flash 模型
             response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             return response.text
         except APIError:

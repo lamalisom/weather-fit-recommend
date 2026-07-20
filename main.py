@@ -62,20 +62,18 @@ def get_weather():
             return {
                 "region": "香港", "temp": data[0], "apparent_temp": data[1],
                 "humidity": data[2], "uv_index": data[3], "precipitation": data[4],
-                "aqi": "良 (45)"  # 這裡我們先給一個常規基礎值，或讓 Gemini 根據下雨狀況自主修正
+                "aqi": "良 (45)"  
             }
     except:
         pass
     return {"region": "香港", "temp": "N/A", "apparent_temp": "N/A", "humidity": "N/A", "uv_index": "N/A", "precipitation": "N/A", "aqi": "N/A"}
 
 def generate_decision(weather, time_str, day_type, future_holiday_info):
-    """呼叫 Gemini 生成結構化的 KAIT Daily Decision Feed (融入空氣質素、雨量與工作日決策)"""
+    """呼叫 Gemini 生成結構化的 KAIT每日決策事項 (融入空氣質素、雨量與工作日決策)"""
     client = genai.Client(api_key=GEMINI_API_KEY)
     
-    # 判斷當天是否為工作日（只要 day_type 包含 "工作日" 就代表上班族需要返工）
     is_workday = "工作日" in day_type
     
-    # 建立強大且乾淨的數據上下文，直接餵給 AI
     weather_context = (
         f"地區: {weather['region']} | 時間: {time_str} | 屬性: {day_type}\n"
         f"氣溫: {weather['temp']} | 體感: {weather['apparent_temp']} | 濕度: {weather['humidity']}\n"
@@ -86,7 +84,7 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
     future_context = f"兩週後預警：{future_holiday_info['date']} 是 {future_holiday_info['name']}" if future_holiday_info else "兩週後無特殊公眾假期"
 
     prompt = f"""
-    任務：根據提供的精準環境數據，生成今日的【KAIT Daily Decision Feed】。
+    任務：根據提供的精準環境數據，生成今日的【KAIT每日決策事項】。
     
     核心宗旨：我們是決策分發渠道（Decision Distribution Channel）。杜絕任何雞湯、問候、百科或Lifestyle軟文。所有內容必須服務於引導用戶相信 KAIT 的「Decision Intelligence（決策智能）」。
 
@@ -95,7 +93,7 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
     {future_context}
     
     決策生成邏輯（核心指令）：
-    1. 🎯 Today's Decisions 必須全面考量「降雨量」與「空氣質素」。
+    1. 🎯 今日決策 必須全面考量「降雨量」與「空氣質素」。
     2. 【上班族通勤決策】：今天{'【是工作日】' if is_workday else '【是假期】'}。{'請精準針對「上班族返工通勤」的服裝穿著、提早出門防塞車或帶傘等維度給出決策。' if is_workday else '請針對市民假期放假外出的休閒與出行交通給出決策。'}
     3. 【⚠️極端防禦機制】：如果數據顯示雨量達大雨/暴雨、空氣質素達嚴重污染、或有強風酷熱等極端狀況，必須在文章**最開頭**強行插入一行：『⚠️<b>【極端環境防禦決策】</b>：[具體避險或防護行動]』。若環境正常則絕對不要顯示此行。
 
@@ -106,17 +104,17 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
 
     請嚴格依照以下結構輸出：
 
-    🤖 <b>【KAIT Daily Decision Feed】</b>
+    🤖 <b>【KAIT每日決策事項】</b>
     📍 <b>Environment：</b> {weather['region']} | {time_str} | {weather['temp']} | 降雨: {weather['precipitation']} | AQI: {weather.get('aqi', 'N/A')}
 
     [此處僅在觸發極端環境時插入警告，正常則留空]
 
     -----------------
-    🎯 <b>Today's Decisions</b>
-    👕 <b>Wear：</b> [針對{'上班族返工' if is_workday else '假日出行'}與體感的穿搭決策]
-    🛒 <b>Buy：</b> [根據氣溫/降雨，給出1句精準消費或避免衝動消費的決策]
-    💄 <b>Skincare：</b> [根據濕度/UV/空氣質素，給出1句防護護膚決策]
-    🍽 <b>Eat/Go：</b> [根據今日天候與通勤/休閒屬性，給出1句飲食或出行線路決策]
+    🎯 <b>今日決策</b>
+    👕 <b>著乜好：</b> [針對{'上班族返工' if is_workday else '假日出行'}與體感的穿搭決策]
+    🛒 <b>買乜好：</b> [根據氣溫/降雨，給出1句精準消費或避免衝動消費的決策]
+    💄 <b>用乜好：</b> [根據濕度/UV/空氣質素，給出1句防護護膚決策]
+    🍽 <b>食乜好：</b> [根據今日天候與通勤/休閒屬性，給出1句飲食或出行線路決策]
 
     -----------------
     🧠 <b>Decision Knowledge (Why?)</b>
@@ -138,26 +136,17 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
             time.sleep(2)
     return "決策生成失敗"
 
-
 def send_to_telegram(text, weather_desc):
     """發送訊息至 Telegram（根據真實天氣特徵動態匹配日系動漫風景圖）"""
-    
-    # 預設圖片：清爽的日系藍天（適合晴天、普通日子）
     image_url = "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80"
     
-    # 1. 提取空氣質素數據（從 weather_desc 或從傳入的數據判斷，此處以關鍵字檢查為例）
-    # 2. 根據雨量與極端環境動態切換精選圖片
     if "雨" in weather_desc or "濕度 9" in weather_desc:
-        # 雨天/高濕度：言葉之庭風的雨中綠意與街道
         image_url = "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80"
     elif "污染" in weather_desc or "嚴重" in weather_desc:
-        # 空氣質素極差/陰霾：低飽和度的霧氣動漫感風景
         image_url = "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80"
     elif "酷熱" in weather_desc or "3" in weather_desc:
-        # 極端高溫/烈日：強烈陽光感的高飽和度夏日晴空
         image_url = "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=800&q=80"
 
-    # 使用 HTML 的零寬度空格隱藏網址，讓 Telegram 自動在上方展開對應的天氣封面
     formatted_text = f'<a href="{image_url}">&#8205;</a>{text}'
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -173,8 +162,6 @@ def send_to_telegram(text, weather_desc):
     else:
         print(f"🎉 成功匹配環境圖片並發送！當前圖片類型基於特徵: {weather_desc}")
         
-
-
 def send_to_linkedin(text):
     """將報告同步發布至 LinkedIn (自動過濾 HTML 標籤以防報錯)"""
     access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
@@ -184,7 +171,6 @@ def send_to_linkedin(text):
         print("說明：未設定 LinkedIn 憑證，跳過 LinkedIn 同步發布。")
         return
 
-    # 💡 核心修改：LinkedIn 不支援 HTML 標籤，用正規表達式把 <b> 和 </b> 刪掉，還原成純文字
     clean_text = re.sub(r'<[^>]+>', '', text)
 
     url = "https://api.linkedin.com/v2/ugcPosts"
@@ -200,7 +186,7 @@ def send_to_linkedin(text):
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
                 "shareCommentary": {
-                    "text": clean_text  # 傳入乾淨的純文字
+                    "text": clean_text  
                 },
                 "shareMediaCategory": "NONE"
             }
@@ -212,38 +198,11 @@ def send_to_linkedin(text):
     
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=10)
-        # LinkedIn 成功發布會回傳 201 Created
         if response.status_code == 201:
             print("🎉 報告已成功同步發布至 LinkedIn！")
         else:
             print(f"❌ LinkedIn 發布失敗，狀態碼: {response.status_code}")
-            print(f"❌ 錯誤訊息: {response.text}")  # 這裡能看到具體失敗原因
-    except Exception as e:
-        print(f"❌ LinkedIn 連線失敗: {str(e)}")
-        
-    # 建立符合 LinkedIn 規範的 JSON 結構
-    payload = {
-        "author": author_urn,
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {
-                    "text": text  # 傳入純文字
-                },
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" # 設定為對公眾公開
-        }
-    }
-    
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        if response.status_code == 201:
-            print("🎉 報告已成功同步發布至 LinkedIn！")
-        else:
-            print(f"❌ LinkedIn 發布失敗: {response.text}")
+            print(f"❌ 錯誤訊息: {response.text}")  
     except Exception as e:
         print(f"❌ LinkedIn 連線失敗: {str(e)}")
 
@@ -252,11 +211,8 @@ if __name__ == "__main__":
     weather_data = get_weather()
     weather_summary = f"{weather_data['temp']} {weather_data['precipitation']}"
     
-    # 1. 讓 Gemini 生成基礎的環境決策純文字
     decision_text = generate_decision(weather_data, current_time, day_type, future_holiday)
     
-    # 2. 發送到 Telegram（此函數內部會自己幫文字加上動漫封面網址與 HTML 標籤）
     send_to_telegram(decision_text, weather_summary)
     
-    # 3. 同步發送到 LinkedIn（直接發送乾淨的純文字內容）
     send_to_linkedin(decision_text)

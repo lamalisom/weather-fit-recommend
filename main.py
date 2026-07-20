@@ -62,9 +62,8 @@ def get_current_time_and_holiday():
     return full_time_str, day_type, future_holiday_info
     
 def get_weather():
-    """獲取當前天氣詳細數據（強制切換為攝氏度 ºC 以防 wttr.in 輸出華氏度）"""
+    """獲取當前天氣詳細數據"""
     try:
-        # 加上 m 參數強制使用公制單位 (Celsius)
         url = "https://wttr.in/Hong+Kong?m&format=%t|%f|%h|%u|%p|%D|%S"
         response = requests.get(url, timeout=10)
         if response.status_code == 200 and "|" in response.text:
@@ -79,7 +78,7 @@ def get_weather():
     return {"region": "香港", "temp": "N/A", "apparent_temp": "N/A", "humidity": "N/A", "uv_index": "N/A", "precipitation": "N/A", "aqi": "N/A"}
 
 def generate_decision(weather, time_str, day_type, future_holiday_info):
-    """呼叫 Gemini 生成結構化的 KAIT每日決策事項（優化無雨數據時的表達圓滑度）"""
+    """呼叫 Gemini 生成結構化的 KAIT每日決策事項"""
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     is_workday = "工作日" in day_type
@@ -110,7 +109,7 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
 
     格式與排版規範：
     - 嚴格禁止口水話，直接輸出下方的結構。不要 Markdown 星號，全部用 <b>文字</b> 加粗。
-    - 🧠 與 🔮 後方絕對不允許出現任何英文 Header，直接換行輸出內容。
+    - 🧠 與 🔮 後方絕對不允許出現任何英文 Header，且 🧠 下方絕對不要顯示 "Fact：" 或 "AI Logic：" 字眼，直接換行輸出兩段內文。
     - 用詞冷靜、理性、專業，符合香港習慣用語（如：返工、帶遮、大雨塞車、濕熱）。
     - 總字數嚴格控制在 250 字內。
 
@@ -130,8 +129,8 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
 
     -----------------
     🧠
-    <b>Fact：</b> [給出一個與今日環境高度相關的數據、心理學或消費科學事實。]
-    <b>AI Logic：</b> [用1句話解釋，基於上述 Fact，KAIT 今日決策矩陣的推薦邏輯。]
+    [給出一個與今日環境高度相關的數據、心理學或消費科學事實內文，不要寫 "Fact："]
+    [用1句話解釋基於上述事實 KAIT 今日決策矩陣的推薦邏輯，不要寫 "AI Logic："]
 
     -----------------
     🔮

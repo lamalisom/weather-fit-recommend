@@ -25,7 +25,6 @@ def get_current_time_and_holiday():
     weekday_idx = now.weekday()
     weekday_str = weekdays_zh[weekday_idx]
     
-    # 時間段判定邏輯
     hour = now.hour
     if 5 <= hour < 12:
         period_str = "上午"
@@ -63,9 +62,10 @@ def get_current_time_and_holiday():
     return full_time_str, day_type, future_holiday_info
     
 def get_weather():
-    """獲取當前天氣詳細數據"""
+    """獲取當前天氣詳細數據（強制切換為攝氏度 ºC 以防 wttr.in 輸出華氏度）"""
     try:
-        url = "https://wttr.in/Hong+Kong?format=%t|%f|%h|%u|%p|%D|%S"
+        # 加上 m 參數強制使用公制單位 (Celsius)
+        url = "https://wttr.in/Hong+Kong?m&format=%t|%f|%h|%u|%p|%D|%S"
         response = requests.get(url, timeout=10)
         if response.status_code == 200 and "|" in response.text:
             data = response.text.strip().split("|")
@@ -79,7 +79,7 @@ def get_weather():
     return {"region": "香港", "temp": "N/A", "apparent_temp": "N/A", "humidity": "N/A", "uv_index": "N/A", "precipitation": "N/A", "aqi": "N/A"}
 
 def generate_decision(weather, time_str, day_type, future_holiday_info):
-    """呼叫 Gemini 生成結構化的 KAIT每日決策事項"""
+    """呼叫 Gemini 生成結構化的 KAIT每日決策事項（優化無雨數據時的表達圓滑度）"""
     client = genai.Client(api_key=GEMINI_API_KEY)
     
     is_workday = "工作日" in day_type
@@ -106,11 +106,12 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
     1. 🎯 今日決策 必須全面考量「降雨量」與「空氣質素」。
     2. 【上班族通勤決策】：今天{'【是工作日】' if is_workday else '【是假期】'}。{'請精準針對「上班族返工通勤」的服裝穿著、提早出門防塞車或帶傘等維度給出決策。' if is_workday else '請針對市民假期放假外出的休閒與出行交通給出決策。'}
     3. 【⚠️極端防禦機制】：如果數據顯示雨量達大雨/暴雨、空氣質素達嚴重污染、或有強風酷熱等極端狀況，必須在文章最開頭強行插入一行：『⚠️<b>【極端環境防禦決策】</b>：[具體避險或防護行動]』。若環境正常則絕對不要顯示此行。
+    4. 【💡 圓滑與精準度修正】：如果數據中降雨量顯示為 0 (如 0.0mm 或 0.00 in)，但此時空氣濕度偏高（高於 75%），在決策時絕對不要斷言「今日無雨/無需帶遮」。必須表達得更加圓滑與防禦性，將其解讀為「目前雖無明顯降雨，但高濕環境下天氣多變/局部地區可能有驟雨，返工仍建議攜帶輕便遮以防萬一」。
 
     格式與排版規範：
     - 嚴格禁止口水話，直接輸出下方的結構。不要 Markdown 星號，全部用 <b>文字</b> 加粗。
     - 🧠 與 🔮 後方絕對不允許出現任何英文 Header，直接換行輸出內容。
-    - 用詞冷靜、理性、專業，符合香港習慣用語（如：返工、帶遮、大雨塞車）。
+    - 用詞冷靜、理性、專業，符合香港習慣用語（如：返工、帶遮、大雨塞車、濕熱）。
     - 總字數嚴格控制在 250 字內。
 
     請嚴格依照以下結構輸出：
@@ -122,7 +123,7 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
 
     -----------------
     🎯 <b>今日決策</b>
-    👕 <b>著乜好：</b> [針對{'上班族返工' if is_workday else '假日出行'}與體感的穿搭決策]
+    👕 <b>著乜好：</b> [針對{'上班族返工' if is_workday else '假日出行'}與體感、降雨不確定性的穿搭與攜帶遮決策]
     🛒 <b>買乜好：</b> [根據氣溫/降雨，給出1句精準消費或避免衝動消費的決策]
     💄 <b>用乜好：</b> [根據濕度/UV/空氣質素，給出1句防護護膚決策]
     🍽 <b>食乜好：</b> [根據今日天候與通勤/休閒屬性，給出1句飲食或出行線路決策]
@@ -148,7 +149,7 @@ def generate_decision(weather, time_str, day_type, future_holiday_info):
     return "決策生成失敗"
 
 def send_to_telegram(text, weather_desc):
-    """發送訊息至 Telegram（根據真實天氣特徵動態匹配日系動漫風景圖）"""
+    """發送訊息至 Telegram"""
     image_url = "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80"
     
     if "雨" in weather_desc or "濕度 9" in weather_desc:

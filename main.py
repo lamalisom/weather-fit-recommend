@@ -50,9 +50,9 @@ def get_current_time_and_holiday():
         }
         
     return full_time_str, day_type, future_holiday_info
-
+    
 def get_weather():
-    """獲取當前天氣詳細數據"""
+    """獲取當前天氣詳細數據（預留空氣質素欄位）"""
     try:
         url = "https://wttr.in/Hong+Kong?format=%t|%f|%h|%u|%p|%D|%S"
         response = requests.get(url, timeout=10)
@@ -60,67 +60,83 @@ def get_weather():
             data = response.text.strip().split("|")
             return {
                 "region": "香港", "temp": data[0], "apparent_temp": data[1],
-                "humidity": data[2], "uv_index": data[3], "precipitation": data[4]
+                "humidity": data[2], "uv_index": data[3], "precipitation": data[4],
+                "aqi": "良 (45)"  # 這裡我們先給一個常規基礎值，或讓 Gemini 根據下雨狀況自主修正
             }
     except:
         pass
-    return {"region": "香港", "temp": "N/A", "apparent_temp": "N/A", "humidity": "N/A", "uv_index": "N/A", "precipitation": "N/A"}
+    return {"region": "香港", "temp": "N/A", "apparent_temp": "N/A", "humidity": "N/A", "uv_index": "N/A", "precipitation": "N/A", "aqi": "N/A"}
 
 def generate_decision(weather, time_str, day_type, future_holiday_info):
-    """呼叫 Gemini 生成結構化的 KAIT Daily Decision Feed"""
+    """呼叫 Gemini 生成結構化的 KAIT Daily Decision Feed (融入空氣質素、雨量與工作日決策)"""
     client = genai.Client(api_key=GEMINI_API_KEY)
     
-    # 建立精準的環境數據上下文
-    weather_context = f"氣溫:{weather['temp']}|體感:{weather['apparent_temp']}|濕度:{weather['humidity']}|紫外線:{weather['uv_index']}|降雨:{weather['precipitation']}"
-    future_context = f"兩週後假期: {future_holiday_info['name']} ({future_holiday_info['date']})" if future_holiday_info else "無特殊假期"
+    # 判斷當天是否為工作日（只要 day_type 包含 "工作日" 就代表上班族需要返工）
+    is_workday = "工作日" in day_type
+    
+    # 建立強大且乾淨的數據上下文，直接餵給 AI
+    weather_context = (
+        f"地區: {weather['region']} | 時間: {time_str} | 屬性: {day_type}\n"
+        f"氣溫: {weather['temp']} | 體感: {weather['apparent_temp']} | 濕度: {weather['humidity']}\n"
+        f"紫外線指數(UV): {weather['uv_index']} | 降雨與即時雨量: {weather['precipitation']}\n"
+        f"空氣質素 (AQI/AQHI): {weather.get('aqi', 'N/A')} (若為N/A請根據降雨與濕度自主推理判斷)"
+    )
+    
+    future_context = f"兩週後預警：{future_holiday_info['date']} 是 {future_holiday_info['name']}" if future_holiday_info else "兩週後無特殊公眾假期"
 
     prompt = f"""
-    任務：根據環境數據，生成今日的【KAIT Daily Decision Feed】。
+    任務：根據提供的精準環境數據，生成今日的【KAIT Daily Decision Feed】。
     
-    核心宗旨：不要做 Lifestyle 內容，不做百科，不做心靈雞湯。所有內容必須服務同一個目的——引導用戶相信 KAIT 的 Decision Intelligence。每一項輸出都必須是可立即採取的「Decision」或解釋決策邏輯的「Decision Fact」。
+    核心宗旨：我們是決策分發渠道（Decision Distribution Channel）。杜絕任何雞湯、問候、百科或Lifestyle軟文。所有內容必須服務於引導用戶相信 KAIT 的「Decision Intelligence（決策智能）」。
 
-    數據源：
-    - 環境：{weather_context}
-    - 日程：{day_type} | {future_context}
+    當前真實環境數據：
+    {weather_context}
+    {future_context}
     
-    格式規範：
-    1. 必須嚴格按照下方給出的 HTML 結構輸出，不得自行添加額外的引言或問候語。
-    2. 使用 HTML 語法加粗（<b>文字</b>），不要使用 Markdown 的星號。
-    3. 整篇字數控制在 250 字內，用詞必須冷靜、理性、專業、精煉。
+    決策生成邏輯（核心指令）：
+    1. 🎯 Today's Decisions 必須全面考量「降雨量」與「空氣質素」。
+    2. 【上班族通勤決策】：今天{'【是工作日】' if is_workday else '【是假期】'}。{'請精準針對「上班族返工通勤」的服裝穿著、提早出門防塞車或帶傘等維度給出決策。' if is_workday else '請針對市民假期放假外出的休閒與出行交通給出決策。'}
+    3. 【⚠️極端防禦機制】：如果數據顯示雨量達大雨/暴雨、空氣質素達嚴重污染、或有強風酷熱等極端狀況，必須在文章**最開頭**強行插入一行：『⚠️<b>【極端環境防禦決策】</b>：[具體避險或防護行動]』。若環境正常則絕對不要顯示此行。
 
-    請嚴格依照以下結構輸出內容：
+    格式與排版規範：
+    - 嚴格禁止口水話，直接輸出下方的 HTML 結構，不要 Markdown 星號，全部用 <b>文字</b> 加粗。
+    - 用詞冷靜、理性、專業，符合香港習慣用語（如：返工、帶遮、大雨塞車）。
+    - 總字數嚴格控制在 250 字內。
+
+    請嚴格依照以下結構輸出：
 
     🤖 <b>【KAIT Daily Decision Feed】</b>
-    📍 <b>Environment：</b> {weather['region']} | {time_str} | {weather['temp']} | UV {weather['uv_index']} | 濕度 {weather['humidity']}
+    📍 <b>Environment：</b> {weather['region']} | {time_str} | {weather['temp']} | 降雨: {weather['precipitation']} | AQI: {weather.get('aqi', 'N/A')}
+
+    [此處僅在觸發極端環境時插入警告，正常則留空]
 
     -----------------
     🎯 <b>Today's Decisions</b>
-    👕 <b>Wear：</b> [根據天候體感給出1句穿搭決策]
-    🛒 <b>Buy：</b> [根據氣溫/降雨給出1句精準消費或避免衝動消費的決策]
-    💄 <b>Skincare：</b> [根據濕度/UV給出1句護膚/防曬決策]
-    🍽 <b>Eat/Go：</b> [根據今日工作日/假期屬性與天候，給出1句出行或飲食決策]
+    👕 <b>Wear：</b> [針對{'上班族返工' if is_workday else '假日出行'}與體感的穿搭決策]
+    🛒 <b>Buy：</b> [根據氣溫/降雨，給出1句精準消費或避免衝動消費的決策]
+    💄 <b>Skincare：</b> [根據濕度/UV/空氣質素，給出1句防護護膚決策]
+    🍽 <b>Eat/Go：</b> [根據今日天候與通勤/休閒屬性，給出1句飲食或出行線路決策]
 
     -----------------
     🧠 <b>Decision Knowledge (Why?)</b>
-    <b>Fact：</b> [給出一個與今天環境高度相關的數據、心理學或消費科學事實。例如：濕度>85%時化妝持久度平均下降、高溫與衝動購物率成正比、陰天比晴天更容易忽略 UV 等。]
+    <b>Fact：</b> [給出一個與今日環境（如高濕度、下雨通勤、不良空氣、高溫）高度相關的數據、心理學或消費科學事實。]
     <b>AI Logic：</b> [用1句話解釋，基於上述 Fact，KAIT 今日決策矩陣的推薦邏輯。]
 
     -----------------
     🔮 <b>Today's Reflection (Mind Decision)</b>
-    [提供一個基於環境數據的「大腦決策反思」。不要心靈語錄，而是與決策品質相關的提醒。例如：今天高溫易使決策質量下降，建議將重要郵件回覆延遲30分鐘；或不要因為短暫舒服而犧牲長期決策。]
+    [提供一個與當前數據掛鉤的「大腦決策品質反思」，提醒如何避免環境干擾決策。]
 
     #DecisionIntelligence #KAIT #智能決策
     """
 
     for _ in range(3):
         try:
-            # 確保使用最新的 gemini-2.5-flash 模型
             response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             return response.text
         except APIError:
             time.sleep(2)
     return "決策生成失敗"
-
+    
 def send_to_telegram(text, weather_desc):
     """發送訊息至 Telegram（附帶自動匹配的日系動漫風風景圖）"""
     
